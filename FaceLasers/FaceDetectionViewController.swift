@@ -151,7 +151,13 @@ extension FaceDetectionViewController: AVCaptureVideoDataOutputSampleBufferDeleg
 			// self.faceView.setNeedsDisplay()
 		// }
 		
-		updateFaceView(for: result)
+		// updateFaceView(for: result)
+		
+		if faceViewHidden {
+			updateLaserView(for: result)
+		} else {
+			updateFaceView(for: result)
+		}
 	}
 	
 	func updateFaceView(for result: VNFaceObservation) {
@@ -207,7 +213,48 @@ extension FaceDetectionViewController: AVCaptureVideoDataOutputSampleBufferDeleg
 			to: result.boundingBox) {
 			faceView.faceContour = faceContour
 		}
+	}
+	
+	func updateLaserView(for result: VNFaceObservation) {
+		laserView.clear()
+		let yaw = result.yaw ?? 0.0
+		if yaw == 0.0 { return }
+		
+		var origins: [CGPoint] = []
+		
+		if let point = result.landmarks?.leftPupil?.normalizedPoints.first {
+			let origin = landmark(point: point, to: result.boundingBox)
+			origins.append(origin)
+		}
+		
+		if let point = result.landmarks?.rightPupil?.normalizedPoints.first {
+			let origin = landmark(point: point, to: result.boundingBox)
+			origins.append(origin)
+		}
+		
+		// logic to figure out where the lasers will be focused
+		// 1
+		let avgY = origins.map { $0.y }.reduce(0.0, +) / CGFloat(origins.count)
 
+		// 2
+		let focusY = (avgY < midY) ? 0.75 * maxY : 0.25 * maxY
+
+		// 3
+		let focusX = (yaw.doubleValue < 0.0) ? -100.0 : maxX + 100.0
+				
+		// 4
+		let focus = CGPoint(x: focusX, y: focusY)
+				
+		// 5
+		for origin in origins {
+			let laser = Laser(origin: origin, focus: focus)
+			laserView.add(laser: laser)
+		}
+
+		// 6
+		DispatchQueue.main.async {
+			self.laserView.setNeedsDisplay()
+		}
 	}
 	
 	func landmark(point: CGPoint, to rect: CGRect) -> CGPoint {
