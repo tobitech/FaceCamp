@@ -34,6 +34,8 @@ class FaceDetectionViewController: UIViewController {
   @IBOutlet var faceView: FaceView!
   @IBOutlet var laserView: LaserView!
   @IBOutlet var faceLaserLabel: UILabel!
+	
+	var sequenceHandler = VNSequenceRequestHandler()
   
   let session = AVCaptureSession()
   var previewLayer: AVCaptureVideoPreviewLayer!
@@ -42,7 +44,8 @@ class FaceDetectionViewController: UIViewController {
     label: "video data queue",
     qos: .userInitiated,
     attributes: [],
-    autoreleaseFrequency: .workItem)
+    autoreleaseFrequency: .workItem
+	)
 
   var faceViewHidden = false
   
@@ -85,7 +88,7 @@ extension FaceDetectionViewController {
 extension FaceDetectionViewController {
   func configureCaptureSession() {
     // Define the capture device we want to use
-    guard let camera = AVCaptureDevice.default(.builtInWideAngleCamera,
+		guard let camera = AVCaptureDevice.default(.builtInWideAngleCamera,
                                                for: .video,
                                                position: .front) else {
       fatalError("No front video camera available")
@@ -122,5 +125,35 @@ extension FaceDetectionViewController {
 
 extension FaceDetectionViewController: AVCaptureVideoDataOutputSampleBufferDelegate {
   func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
+		guard let imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+		
+		let detectFaceRequest = VNDetectFaceRectanglesRequest(completionHandler: detectedFace)
+		
+		do {
+			try sequenceHandler.perform([detectFaceRequest], on: imageBuffer, orientation: .leftMirrored)
+		} catch {
+			print(error.localizedDescription)
+		}
   }
+	
+	func detectedFace(request: VNRequest, error: Error?) {
+		guard let results = request.results as? [VNFaceObservation],
+					let result = results.first else {
+			faceView.clear()
+			return
+		}
+		
+		let box = result.boundingBox
+		faceView.boundingBox = convert(rect: box)
+		
+		DispatchQueue.main.async {
+			self.faceView.setNeedsDisplay()
+		}
+	}
+	
+	func convert(rect: CGRect) -> CGRect {
+		let origin = previewLayer.layerPointConverted(fromCaptureDevicePoint: rect.origin)
+		let size = previewLayer.layerPointConverted(fromCaptureDevicePoint: rect.size.cgPoint)
+		return CGRect(origin: origin, size: size.cgSize)
+	}
 }

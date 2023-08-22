@@ -58,6 +58,18 @@ class FaceView: UIView {
     }
   }
   
-  override func draw(_ rect: CGRect) {
+	override func draw(_ rect: CGRect) {
+		guard let context = UIGraphicsGetCurrentContext() else {
+			return
+		}
+		context.saveGState()
+		
+		defer { context.restoreGState() }
+		
+		context.addRect(boundingBox)
+		
+		UIColor.red.setStroke()
+		
+		context.strokePath()
   }
 }
